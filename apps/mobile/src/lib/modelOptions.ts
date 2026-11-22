@@ -23,6 +23,7 @@ import {
   getProviderOptionDescriptors,
 } from "@t3tools/shared/model";
 import { resolveModelShortName } from "@t3tools/client-runtime/provider-clients";
+import { applyProviderOrder } from "@t3tools/shared/serverSettings";
 import { resolveProvidersForCwd } from "@t3tools/client-runtime/providerSkills";
 
 /** The contracts `disallowedProviderMessage` English, as translatable sentences. */
@@ -385,7 +386,10 @@ export function buildModelOptions(
     };
   };
 
-  for (const provider of config?.providers ?? []) {
+  for (const provider of applyProviderOrder(
+    config?.providers ?? [],
+    config?.settings?.providerOrder ?? [],
+  )) {
     if (
       !matchesLockedProvider(provider) ||
       isDriverDisallowed(config, provider.driver) ||

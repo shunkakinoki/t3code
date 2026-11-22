@@ -17,6 +17,7 @@ import { resolveServerBackgroundActivitySettings } from "./backgroundActivitySet
 import { createModelSelection } from "./model.ts";
 import { resolveProjectScripts } from "./projectScripts.ts";
 import {
+  applyProviderOrder,
   applyServerSettingsPatch,
   fallbackTextGenerationModelSelection,
   modelPreferencesMigrationPatch,
@@ -91,6 +92,24 @@ describe("fallbackTextGenerationModelSelection", () => {
 });
 
 describe("serverSettings helpers", () => {
+  it("replaces the saved provider order and sorts unlisted instances after it", () => {
+    const [codex, claude, cursor] = ["codex", "claudeAgent", "cursor"].map((id) =>
+      ProviderInstanceId.make(id),
+    );
+    const saved = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      providerOrder: [cursor!, codex!],
+    });
+    const reordered = applyServerSettingsPatch(saved, { providerOrder: [claude!] });
+    expect(reordered.providerOrder).toEqual([claude]);
+    const items = [{ instanceId: codex! }, { instanceId: claude! }, { instanceId: cursor! }];
+    expect(applyProviderOrder(items, saved.providerOrder).map((item) => item.instanceId)).toEqual([
+      cursor,
+      codex,
+      claude,
+    ]);
+    expect(applyProviderOrder(items, [])).toBe(items);
+  });
+
   it("translates a shipped client's idle compaction switch into a mode", () => {
     const off = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, { idleCompaction: "off" });
     expect([off.idleCompaction, off.compactIdleThreads]).toEqual(["off", false]);

@@ -1,4 +1,5 @@
 import { SettingsGroup } from "./SettingsGroup";
+import { ProviderSortableList, ProviderSortableRow } from "./ProviderSortableList";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import {
   AuthSettingsWriteScope,
@@ -37,6 +38,7 @@ import {
   getBackgroundActivityPresetSettings,
   resolveServerBackgroundActivitySettings,
 } from "@t3tools/shared/backgroundActivitySettings";
+import { applyProviderOrder } from "@t3tools/shared/serverSettings";
 import * as Arr from "effect/Array";
 import * as Duration from "effect/Duration";
 import * as Result from "effect/Result";
@@ -809,13 +811,16 @@ export function EnvironmentProviderSettings({
     }
   }
 
+  const orderedRows = applyProviderOrder(rows, settings.providerOrder);
+  const canReorder = !readOnly && canWriteSettings;
+
   const targetInstanceMissing =
     targetInstanceId !== undefined &&
     selectedInstanceId === targetInstanceId &&
-    !rows.some((row) => row.instanceId === targetInstanceId);
+    !orderedRows.some((row) => row.instanceId === targetInstanceId);
   const selectedRow =
-    rows.find((row) => row.instanceId === selectedInstanceId) ??
-    (targetInstanceMissing ? null : (rows[0] ?? null));
+    orderedRows.find((row) => row.instanceId === selectedInstanceId) ??
+    (targetInstanceMissing ? null : (orderedRows[0] ?? null));
 
   const persistInstance = async (
     instanceId: ProviderInstanceId,
@@ -979,7 +984,11 @@ export function EnvironmentProviderSettings({
   const favorites = settings.favorites.length > 0 ? settings.favorites : NO_FAVORITES;
 
   const representativeProjectId = projectIds[0];
-  const renderProviderInstance = (row: InstanceRow, mode: "list" | "editor") => {
+  const renderProviderInstance = (
+    row: InstanceRow,
+    mode: "list" | "editor",
+    dragHandle?: ReactNode,
+  ) => {
     const showProjectOverride =
       representativeProjectId !== undefined && supportsProjectProviderOverrides;
     return (
@@ -993,6 +1002,7 @@ export function EnvironmentProviderSettings({
         isDefault={row.isDefault}
         isDirty={row.isDirty === true}
         mode={mode}
+        dragHandle={dragHandle}
         selected={mode === "list" && selectedRow?.instanceId === row.instanceId}
         readOnly={readOnly}
         canWriteSettings={canWriteSettings}
@@ -1111,7 +1121,20 @@ export function EnvironmentProviderSettings({
               className="@min-[48rem]/providers:min-h-0 @min-[48rem]/providers:flex-1"
             >
               <div className="divide-y divide-border/50">
-                {rows.map((row) => renderProviderInstance(row, "list"))}
+                {canReorder ? (
+                  <ProviderSortableList
+                    instanceIds={orderedRows.map((row) => row.instanceId)}
+                    onReorder={(providerOrder) => updateSettings({ providerOrder })}
+                  >
+                    {orderedRows.map((row) => (
+                      <ProviderSortableRow key={row.instanceId} instanceId={row.instanceId}>
+                        {(dragHandle) => renderProviderInstance(row, "list", dragHandle)}
+                      </ProviderSortableRow>
+                    ))}
+                  </ProviderSortableList>
+                ) : (
+                  orderedRows.map((row) => renderProviderInstance(row, "list"))
+                )}
                 {canAddProvider ? (
                   <button
                     type="button"
@@ -1296,6 +1319,7 @@ function ProviderInstanceRow({
   isDefault,
   isDirty,
   mode,
+  dragHandle,
   selected,
   readOnly,
   canWriteSettings,
@@ -1317,6 +1341,7 @@ function ProviderInstanceRow({
   readonly isDirty: boolean;
   readonly mode: "list" | "editor";
   readonly selected: boolean;
+  readonly dragHandle?: ReactNode;
   readonly readOnly: boolean;
   readonly canWriteSettings: boolean;
   readonly liveProvider: ServerProvider | undefined;
@@ -1384,6 +1409,7 @@ function ProviderInstanceRow({
       mode={mode}
       selected={selected}
       onSelect={mode === "list" ? () => actions.selectInstance(instanceId) : undefined}
+      dragHandle={dragHandle}
       readOnly={readOnly}
       runtime={
         mode === "editor" && codexSetupMode === "managed" ? (

@@ -45,6 +45,17 @@ const decodeServerObservabilitySettingsJson = Schema.decodeUnknownOption(
   ServerObservabilitySettingsJson,
 );
 
+/** Sorts by the saved provider order; instances it omits keep their relative order after it. */
+export function applyProviderOrder<T extends { readonly instanceId: ProviderInstanceId }>(
+  items: ReadonlyArray<T>,
+  providerOrder: ReadonlyArray<ProviderInstanceId>,
+): ReadonlyArray<T> {
+  if (providerOrder.length === 0) return items;
+  const rank = new Map(providerOrder.map((instanceId, index) => [instanceId, index]));
+  const rankOf = (item: T) => rank.get(item.instanceId) ?? providerOrder.length;
+  return [...items].sort((a, b) => rankOf(a) - rankOf(b));
+}
+
 export function isModelSelectionProviderEnabled(
   settings: ServerSettings,
   selection: ModelSelection,
@@ -544,6 +555,7 @@ export function applyServerSettingsPatch(
     ...(patch.providerInstances !== undefined
       ? { providerInstances: patch.providerInstances }
       : {}),
+    ...(patch.providerOrder !== undefined ? { providerOrder: patch.providerOrder } : {}),
     ...(patch.worktreesDirectory !== undefined &&
     patch.worktreesDirectory !== current.worktreesDirectory
       ? {
